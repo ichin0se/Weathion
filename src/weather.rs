@@ -1,40 +1,61 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use reqwest::Client;
 use serde::Deserialize;
 
 // -------------------------------------
-// 天気情報の構造体（仮）
+// Struct of the Weather Infomation
 // -------------------------------------
 #[derive(Debug, Deserialize)]
 pub struct WeatherInfo {
     pub temperature: f64,
+    pub chance_of_precipitation: f32,
     pub description: String,
 }
 
+impl WeatherInfo {
+    pub fn validate(self) -> Result<Self> {
+        if self.temperature <= -50.0 || 50.0 <= self.temperature {
+            bail!("Temperature out of range");
+        }
+        if self.chance_of_precipitation < 0.0 || 100.0 < self.chance_of_precipitation {
+            bail!("Chance of Precipitation out of range");
+        }
+
+        if self.description.trim().is_empty() {
+            bail!("Description is empty");
+        }
+        Ok(self)
+    }
+}
+
 // -------------------------------------
-// 天気予報APIから情報を取得（ダミー）
+// Fetch Weather Data from API
 // -------------------------------------
-pub async fn fetch_weather_info(client: &Client, api_key: &str, city: &str) -> Result<WeatherInfo> {
+pub async fn fetch_weather_info(api_key: &str, city: &str) -> Result<WeatherInfo> {
     let _url = format!(
         "https://api.openweathermap.org/data/2.5/weather?q={}&appid={}&units=metric",
         city, api_key
     );
 
-    // 実際にはこんな形で取得する
-    // let resp = client.get(&_url).send().await?;
-    // let json_data = resp.json::<serde_json::Value>().await?;
+    // let resp = client.get(&_url).send().await.map_err(|_| "Request failed")?;
+    // let json_data = resp.json::<serde_json::Value>().await.map_err(|_| "JSON parse failed")?;
+    // let weather_info = WeatherInfo {
+    //     temperature: json_data["main"]["temp"].as_f64().unwrap_or_default(),
+    //     chance_of_precipitation: some_value_from_json,
+    //     description: some_string_from_json,
+    // };
 
-    // ダミー値として返す
-    let dummy_weather = WeatherInfo {
+    let weather_info = WeatherInfo {
         temperature: 23.4,
+        chance_of_precipitation: 80.5,
         description: "cloudy".to_string(),
     };
 
-    Ok(dummy_weather)
+    weather_info.validate()
 }
 
 // -------------------------------------
-// テストモジュール
+// Test
 // -------------------------------------
 #[cfg(test)]
 mod tests {
@@ -42,14 +63,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_weather_info() {
-        let client = reqwest::Client::new();
+        //let client = reqwest::Client::new();
         let api_key = "dummy_api_key";
         let city = "dummy_city";
 
-        let result = fetch_weather_info(&client, api_key, city).await;
+        let result = fetch_weather_info(api_key, city).await;
         assert!(result.is_ok());
         let weather = result.unwrap();
-        // テスト用なので、dummyの値を想定通りかチェックする
+        // test dummy
         assert_eq!(weather.temperature, 23.4);
         assert_eq!(weather.description, "cloudy");
     }

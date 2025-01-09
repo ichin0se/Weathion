@@ -23,8 +23,8 @@ pub fn draw_ui<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
     let weather_block = Block::default().title("Weather").borders(Borders::ALL);
     let weather_text = match &app_state.weather_info {
         Some(info) => format!(
-            "Temp: {:.1}°C\nDesc: {}",
-            info.temperature, info.description
+            "Temp: {:.1}°C\nDesc: {}\n{:.1}%",
+            info.temperature, info.description, info.chance_of_precipitation
         ),
         None => "No data".to_string(),
     };
@@ -75,6 +75,5 @@ mod tests {
             .unwrap();
 
         // 出力内容のアサートなどは省略
-        // 実際にはsnapshotテストや画面の一部文言チェックなどを行うケースもある
     }
 }

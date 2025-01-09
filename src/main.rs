@@ -37,44 +37,36 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 環境変数から読み込む場合
-    // dotenv::dotenv().ok();
-    // let notion_token = std::env::var("NOTION_TOKEN")?;
-    // let notion_db_id = std::env::var("NOTION_DB_ID")?;
-    // let weather_api_key = std::env::var("WEATHER_API_KEY")?;
-    // let city = std::env::var("TARGET_CITY")?;
-
-    // 今はサンプル用に直書き
     let notion_token = "YOUR_NOTION_TOKEN";
     let notion_db_id = "YOUR_NOTION_DB_ID";
     let weather_api_key = "YOUR_WEATHER_API_KEY";
     let city = "Tokyo";
 
-    // HTTPクライアント
+    // HTTP Client
     let client = Client::new();
 
-    // TUIのセットアップ
+    // TUI Setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // アプリステート初期化
+    // AppState Initialize
     let mut app_state = AppState::new();
 
-    // メインループ
+    // Main Loop
     'running: loop {
-        // キーイベントがあれば処理
+        // Key Event
         if event::poll(Duration::from_millis(100))? {
             if let CEvent::Key(key_event) = event::read()? {
                 match key_event.code {
                     KeyCode::Char('q') => {
-                        // q で終了
+                        // Quit by "Q"
                         break 'running;
                     }
                     KeyCode::Char('r') => {
-                        // r で手動リロード
+                        // reload by "R"
                         refresh_data(
                             &client,
                             notion_token,
@@ -90,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        // 一定周期で自動更新（例: 10秒）
+        // Refresh
         if app_state.last_update.elapsed() > Duration::from_secs(10) {
             refresh_data(
                 &client,
@@ -103,11 +95,11 @@ async fn main() -> anyhow::Result<()> {
             .await?;
         }
 
-        // 描画
+        // Draw
         terminal.draw(|f| ui::draw_ui(f, &app_state))?;
     }
 
-    // 終了処理
+    // Quit
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -116,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 // -------------------------------------
-// データ再取得: Notion & 天気
+// Fetch
 // -------------------------------------
 async fn refresh_data(
     client: &Client,
@@ -126,22 +118,22 @@ async fn refresh_data(
     city: &str,
     app_state: &mut AppState,
 ) -> anyhow::Result<()> {
-    // Notionイベント更新
+    // Update Notion Events
     let new_events = notion::fetch_notion_events(client, notion_token, notion_db_id).await?;
     app_state.notion_events = new_events;
 
-    // 天気更新
-    let new_weather = weather::fetch_weather_info(client, weather_api_key, city).await?;
+    // Update Weather
+    let new_weather = weather::fetch_weather_info(weather_api_key, city).await?;
     app_state.weather_info = Some(new_weather);
 
-    // タイムスタンプ更新
+    // Update Timestamp
     app_state.last_update = Instant::now();
 
     Ok(())
 }
 
 // -------------------------------------
-// 単体テスト
+// Test
 // -------------------------------------
 #[cfg(test)]
 mod tests {
