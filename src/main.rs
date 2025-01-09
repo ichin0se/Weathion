@@ -1,88 +1,98 @@
-use std::io;
-use std::time::{Duration, Instant};
-
-use crossterm::{
-    event::{self, Event as CEvent, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use ratatui::{
-    backend::{Backend, CrosstermBackend},
-    Terminal,
-};
-use reqwest::Client;
-use tokio::time::sleep;
-
-// 自作モジュールを参照
+mod calendar;
 mod notion;
 mod ui;
 mod weather;
 
-// アプリ状態を保持する構造体
+use std::{
+    io,
+    time::{Duration, Instant},
+};
+
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+
+use ratatui::{backend::CrosstermBackend, Terminal};
+use time::{Month, OffsetDateTime};
+
+use notion::NotionEvent;
+use ratatui::widgets::calendar::CalendarEventStore;
+use weather::WeatherInfo;
+
 pub struct AppState {
-    pub notion_events: Vec<notion::NotionEvent>,
-    pub weather_info: Option<weather::WeatherInfo>,
+    pub notion_events: Vec<NotionEvent>,
+    pub weather_info: Option<WeatherInfo>,
+    pub calendar_store: CalendarEventStore,
+    pub year: i32,
+    pub month: Month,
     pub last_update: Instant,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let now = OffsetDateTime::now_local().expect("Could not get local time");
+        let year: i32 = now.year();
+        let month: Month = now.month();
+
+        let calendar_store = calendar::init_calendar_events();
+
         Self {
             notion_events: vec![],
             weather_info: None,
             last_update: Instant::now(),
+            calendar_store,
+            year,
+            month,
         }
     }
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let notion_token = "YOUR_NOTION_TOKEN";
-    let notion_db_id = "YOUR_NOTION_DB_ID";
-    let weather_api_key = "YOUR_WEATHER_API_KEY";
-    let city = "Tokyo";
-
-    // HTTP Client
-    let client = Client::new();
-
-    // TUI Setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // AppState Initialize
     let mut app_state = AppState::new();
+    let client = reqwest::Client::new();
 
-    // Main Loop
+    let notion_token = "DUMMY_NOTION_TOKEN";
+    let notion_db_id = "DUMMY_NOTION_DB_ID";
+
+    let weather_api_key = "DUMMY_WEATHER_KEY";
+    let city = "Tokyo";
+
     'running: loop {
-        // Key Event
+        terminal.draw(|f| ui::draw(f, &app_state))?;
+
         if event::poll(Duration::from_millis(100))? {
-            if let CEvent::Key(key_event) = event::read()? {
-                match key_event.code {
-                    KeyCode::Char('q') => {
-                        // Quit by "Q"
-                        break 'running;
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            break 'running;
+                        }
+                        KeyCode::Char('r') => {
+                            refresh_data(
+                                &client,
+                                notion_token,
+                                notion_db_id,
+                                weather_api_key,
+                                city,
+                                &mut app_state,
+                            )
+                            .await?;
+                        }
+                        _ => {}
                     }
-                    KeyCode::Char('r') => {
-                        // reload by "R"
-                        refresh_data(
-                            &client,
-                            notion_token,
-                            notion_db_id,
-                            weather_api_key,
-                            city,
-                            &mut app_state,
-                        )
-                        .await?;
-                    }
-                    _ => {}
                 }
             }
         }
 
-        // Refresh
         if app_state.last_update.elapsed() > Duration::from_secs(10) {
             refresh_data(
                 &client,
@@ -93,13 +103,10 @@ async fn main() -> anyhow::Result<()> {
                 &mut app_state,
             )
             .await?;
+            app_state.last_update = Instant::now();
         }
-
-        // Draw
-        terminal.draw(|f| ui::draw_ui(f, &app_state))?;
     }
 
-    // Quit
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -107,27 +114,21 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// -------------------------------------
-// Fetch
-// -------------------------------------
 async fn refresh_data(
-    client: &Client,
+    client: &reqwest::Client,
     notion_token: &str,
     notion_db_id: &str,
     weather_api_key: &str,
     city: &str,
     app_state: &mut AppState,
 ) -> anyhow::Result<()> {
-    // Update Notion Events
     let new_events = notion::fetch_notion_events(client, notion_token, notion_db_id).await?;
     app_state.notion_events = new_events;
 
-    // Update Weather
     let new_weather = weather::fetch_weather_info(weather_api_key, city).await?;
     app_state.weather_info = Some(new_weather);
 
-    // Update Timestamp
-    app_state.last_update = Instant::now();
+    calendar::update_calendar_store(&mut app_state.calendar_store, &app_state.notion_events);
 
     Ok(())
 }
