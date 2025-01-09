@@ -1,6 +1,12 @@
+# This Project is wip
+
+
+
 <p style="display: inline">
     <img src="https://img.shields.io/badge/-Rust-434343.svg?logo=rust&style=popout">
 </p>
+
+
 
 ## Table of Contents
 
@@ -27,18 +33,18 @@ Weathion is a Rust-based TUI application that merges your Notion calendar with r
 
 
 ## DirectoryStructure
-
+```
 .\
-├── Cargo.toml\
-├── src\
-│    ├── main.rs\
-│    ├── notion.rs\
-│    ├── ui.rs\
-│    └── weather.rs\
-├── .gitignore\
-├── LICENSE\
+├── Cargo.toml
+├── src
+│    ├── main.rs
+│    ├── notion.rs
+│    ├── ui.rs
+│    └── weather.rs
+├── .gitignore
+├── LICENSE
 └── README.md
-
+```
 
 
 ## Installation
